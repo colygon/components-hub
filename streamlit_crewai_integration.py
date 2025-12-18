@@ -38,10 +38,11 @@ def show_ai_insights_panel(component_data: Dict):
         return
 
     with st.expander("🤖 AI Insights (powered by CrewAI)", expanded=False):
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2, tab3, tab4 = st.tabs([
             "📊 Quality Analysis",
             "🏷️ Category Insights",
-            "💡 Recommendations"
+            "💡 Recommendations",
+            "📚 Documentation Search"
         ])
 
         with tab1:
@@ -75,6 +76,42 @@ def show_ai_insights_panel(component_data: Dict):
                         st.markdown(recommendations)
                     except Exception as e:
                         st.error(f"Recommendation failed: {e}")
+
+        with tab4:
+            st.markdown("### 📚 Search Component Documentation")
+            st.caption("Use CodeDocsSearchTool to search through component documentation")
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                search_query = st.text_input(
+                    "Documentation search query",
+                    placeholder="e.g., 'installation steps' or 'API reference'",
+                    key=f"docsearch_{component_data.get('package', 'unknown')}"
+                )
+            with col2:
+                search_button = st.button("Search Docs", key=f"docsearch_btn_{component_data.get('package', 'unknown')}")
+
+            if search_button and search_query:
+                with st.spinner("🔍 Searching component documentation..."):
+                    try:
+                        results = agents.search_component_docs(
+                            component_data.get('name', 'Unknown'),
+                            search_query
+                        )
+                        st.markdown("#### Search Results")
+                        st.markdown(results)
+                    except Exception as e:
+                        st.error(f"Documentation search failed: {e}")
+
+            st.markdown("---")
+            if st.button("Analyze Documentation Quality", key=f"docquality_{component_data.get('package', 'unknown')}"):
+                with st.spinner("📖 Analyzing documentation quality..."):
+                    try:
+                        quality_analysis = agents.analyze_documentation_quality(component_data)
+                        st.markdown("#### Documentation Quality Report")
+                        st.markdown(quality_analysis)
+                    except Exception as e:
+                        st.error(f"Documentation quality analysis failed: {e}")
 
 
 def ai_powered_search(search_query: str, components: List[Dict]) -> str:
@@ -139,6 +176,32 @@ def batch_categorization(components: List[Dict], available_categories: List[str]
     return results
 
 
+def search_all_component_docs(search_query: str) -> str:
+    """
+    Search across all component documentation using CodeDocsSearchTool.
+
+    Args:
+        search_query: Search query for documentation
+
+    Returns:
+        Aggregated search results
+    """
+    if not st.session_state.get("crewai_enabled", False):
+        return ""
+
+    agents = st.session_state.get("crewai_agents")
+    if not agents or not search_query:
+        return ""
+
+    try:
+        with st.spinner("🔍 Searching all component documentation..."):
+            results = agents.search_component_docs("all components", search_query)
+            return results
+    except Exception as e:
+        st.error(f"Documentation search failed: {e}")
+        return ""
+
+
 def show_ai_dashboard():
     """
     Display a dedicated AI dashboard with CrewAI agent capabilities.
@@ -154,6 +217,15 @@ def show_ai_dashboard():
     if st.sidebar.checkbox("Enable AI Search Assistant", value=False):
         st.sidebar.info("💡 AI will analyze your searches and provide intelligent recommendations.")
 
+    # Documentation search
+    if st.sidebar.checkbox("Enable Documentation Search", value=False):
+        st.sidebar.info("📚 Use CodeDocsSearchTool to search component documentation.")
+        doc_query = st.sidebar.text_input("Search docs:", placeholder="e.g., 'authentication'")
+        if doc_query and st.sidebar.button("Search"):
+            results = search_all_component_docs(doc_query)
+            if results:
+                st.sidebar.markdown(results)
+
     # Bulk operations
     if st.sidebar.button("🔄 Bulk Categorize All Components"):
         st.sidebar.info("This will use AI to suggest better categories for all components.")
@@ -161,9 +233,16 @@ def show_ai_dashboard():
     # Agent statistics
     with st.sidebar.expander("📈 AI Agent Stats"):
         st.write("**Active Agents:** 3")
-        st.write("- Component Analyzer")
+        st.write("- Component Analyzer (with CodeDocsSearchTool)")
         st.write("- Category Expert")
         st.write("- Recommendation Specialist")
+        st.write("")
+        st.write("**Tools Available:**")
+        agents = st.session_state.get("crewai_agents")
+        if agents and agents.code_docs_tool:
+            st.write("✅ CodeDocsSearchTool")
+        else:
+            st.write("❌ CodeDocsSearchTool (not configured)")
 
 
 def get_ai_component_score(component_data: Dict) -> Optional[float]:

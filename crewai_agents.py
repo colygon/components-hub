@@ -4,6 +4,7 @@ Agent 45 - Component Curation System
 """
 
 from crewai import Agent, Task, Crew, Process
+from crewai_tools import CodeDocsSearchTool
 from langchain_openai import ChatOpenAI
 from typing import List, Dict, Optional
 import os
@@ -17,8 +18,14 @@ class ComponentCurationAgents:
     3. Recommendation Specialist - Generates recommendations and rankings
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the agents with OpenAI API key."""
+    def __init__(self, api_key: Optional[str] = None, docs_path: Optional[str] = None):
+        """
+        Initialize the agents with OpenAI API key and optional documentation path.
+
+        Args:
+            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            docs_path: Path to component documentation directory for CodeDocsSearchTool
+        """
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.llm = ChatOpenAI(
             model="gpt-4",
@@ -26,21 +33,43 @@ class ComponentCurationAgents:
             api_key=self.api_key
         )
 
+        # Initialize CodeDocsSearchTool for searching component documentation
+        self.docs_path = docs_path or os.path.join(os.getcwd(), "component_docs")
+        self.code_docs_tool = None
+        try:
+            # Initialize the tool if docs path exists
+            if os.path.exists(self.docs_path):
+                self.code_docs_tool = CodeDocsSearchTool(docs_url=self.docs_path)
+            else:
+                # Create a default tool instance for remote documentation
+                self.code_docs_tool = CodeDocsSearchTool()
+        except Exception as e:
+            print(f"Warning: CodeDocsSearchTool initialization failed: {e}")
+            self.code_docs_tool = None
+
     def create_component_analyzer(self) -> Agent:
         """
         Agent 1: Component Analyzer
         Analyzes component quality, features, and documentation.
+        Now equipped with CodeDocsSearchTool for documentation analysis.
         """
+        tools = []
+        if self.code_docs_tool:
+            tools.append(self.code_docs_tool)
+
         return Agent(
             role="Component Quality Analyst",
             goal="Analyze Streamlit components for quality, features, and documentation completeness",
             backstory="""You are an expert in evaluating software components with years of
             experience in the Streamlit ecosystem. You have a keen eye for identifying
             well-maintained, documented, and useful components. You analyze GitHub stars,
-            download statistics, code quality, and documentation to assess component value.""",
+            download statistics, code quality, and documentation to assess component value.
+            You use the CodeDocsSearchTool to search through component documentation and
+            extract detailed information about features, usage patterns, and best practices.""",
             verbose=True,
             allow_delegation=False,
-            llm=self.llm
+            llm=self.llm,
+            tools=tools if tools else None
         )
 
     def create_category_expert(self) -> Agent:
@@ -207,6 +236,97 @@ class ComponentCurationAgents:
 
         crew = Crew(
             agents=[specialist],
+            tasks=[task],
+            process=Process.sequential,
+            verbose=True
+        )
+
+        result = crew.kickoff()
+        return str(result)
+
+    def search_component_docs(self, component_name: str, search_query: str) -> str:
+        """
+        Search component documentation using CodeDocsSearchTool.
+
+        Args:
+            component_name: Name of the component to search docs for
+            search_query: Specific query about the component documentation
+
+        Returns:
+            Search results from documentation
+        """
+        if not self.code_docs_tool:
+            return "CodeDocsSearchTool is not available. Documentation search is disabled."
+
+        analyzer = self.create_component_analyzer()
+
+        task = Task(
+            description=f"""Use the CodeDocsSearchTool to search documentation for {component_name}.
+
+            Search Query: {search_query}
+
+            Use the tool to find:
+            1. Relevant documentation sections
+            2. Code examples
+            3. API references
+            4. Usage instructions
+            5. Configuration options
+
+            Provide a comprehensive summary of the findings.
+            """,
+            agent=analyzer,
+            expected_output="Detailed documentation search results with relevant excerpts and examples"
+        )
+
+        crew = Crew(
+            agents=[analyzer],
+            tasks=[task],
+            process=Process.sequential,
+            verbose=True
+        )
+
+        result = crew.kickoff()
+        return str(result)
+
+    def analyze_documentation_quality(self, component_data: Dict) -> str:
+        """
+        Analyze documentation quality using CodeDocsSearchTool.
+
+        Args:
+            component_data: Dictionary containing component information
+
+        Returns:
+            Documentation quality analysis
+        """
+        if not self.code_docs_tool:
+            return "CodeDocsSearchTool is not available. Documentation quality analysis is limited."
+
+        analyzer = self.create_component_analyzer()
+
+        task = Task(
+            description=f"""Analyze the documentation quality for this component:
+
+            Component: {component_data.get('name', 'Unknown')}
+            Package: {component_data.get('package', 'Unknown')}
+            GitHub: {component_data.get('github', 'N/A')}
+
+            Use the CodeDocsSearchTool to evaluate:
+            1. Documentation completeness
+            2. Code examples availability
+            3. API documentation clarity
+            4. Installation instructions
+            5. Usage examples
+            6. Troubleshooting guides
+            7. Overall documentation structure
+
+            Provide a detailed assessment with specific examples from the documentation.
+            """,
+            agent=analyzer,
+            expected_output="Comprehensive documentation quality assessment with specific findings"
+        )
+
+        crew = Crew(
+            agents=[analyzer],
             tasks=[task],
             process=Process.sequential,
             verbose=True

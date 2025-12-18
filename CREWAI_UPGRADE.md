@@ -12,9 +12,11 @@ The upgrade introduces a sophisticated multi-agent system built with CrewAI for 
 
 #### 1. **Component Analyzer Agent**
 - **Role**: Component Quality Analyst
+- **Tools**: CodeDocsSearchTool for documentation analysis
 - **Responsibilities**:
   - Analyzes component quality and maintenance status
-  - Evaluates documentation completeness
+  - Evaluates documentation completeness using CodeDocsSearchTool
+  - Searches component documentation for specific information
   - Assesses community adoption metrics
   - Identifies strengths and weaknesses
   - Provides use case recommendations
@@ -54,7 +56,14 @@ The upgrade introduces a sophisticated multi-agent system built with CrewAI for 
    - Personalized recommendations based on user queries
    - Alternative options and combination suggestions
 
-4. **Collaborative Agent Workflow**
+4. **Documentation Search with CodeDocsSearchTool** ⭐ NEW
+   - Search through component documentation using AI
+   - Extract code examples and API references
+   - Analyze documentation quality and completeness
+   - Find installation instructions and usage patterns
+   - Identify missing or incomplete documentation sections
+
+5. **Collaborative Agent Workflow**
    - All three agents work together for comprehensive analysis
    - Sequential processing for thorough evaluation
    - Integrated insights from multiple perspectives
@@ -140,6 +149,7 @@ The following packages have been added:
 
 ```
 crewai>=0.86.0           # Multi-agent AI framework
+crewai-tools>=0.12.0     # CrewAI tools including CodeDocsSearchTool
 langchain-openai>=0.3.0  # OpenAI integration for LangChain
 ```
 
@@ -198,6 +208,21 @@ result = agents.collaborative_analysis(component_data, categories)
 print(result["analysis"])
 ```
 
+#### 5. Documentation Search with CodeDocsSearchTool
+
+```python
+# Search component documentation
+search_results = agents.search_component_docs(
+    component_name="streamlit-aggrid",
+    search_query="How to configure grid options?"
+)
+print(search_results)
+
+# Analyze documentation quality
+quality_report = agents.analyze_documentation_quality(component_data)
+print(quality_report)
+```
+
 ### Streamlit Integration
 
 The integration layer provides UI components:
@@ -206,17 +231,21 @@ The integration layer provides UI components:
 from streamlit_crewai_integration import (
     initialize_crewai_agents,
     show_ai_insights_panel,
-    ai_powered_search
+    ai_powered_search,
+    search_all_component_docs
 )
 
 # Initialize agents in Streamlit
 initialize_crewai_agents()
 
-# Show AI insights for a component
+# Show AI insights for a component (now includes Documentation Search tab)
 show_ai_insights_panel(component_data)
 
 # AI-powered search
 results = ai_powered_search("dataframe visualization", components)
+
+# Search all component documentation
+doc_results = search_all_component_docs("authentication examples")
 ```
 
 ## Agent Details
@@ -225,16 +254,24 @@ results = ai_powered_search("dataframe visualization", components)
 
 **Capabilities**:
 - Quality assessment based on GitHub stars, downloads, and maintenance
-- Documentation completeness evaluation
+- Documentation completeness evaluation using CodeDocsSearchTool
+- Documentation search and extraction
 - Community adoption analysis
 - Feature identification
 - Use case recommendations
+
+**Tools Equipped**:
+- CodeDocsSearchTool: Enables searching and analyzing component documentation
 
 **Example Output**:
 ```
 Component Quality Assessment:
 - ⭐ Quality Score: 8.5/10
-- 📚 Documentation: Excellent
+- 📚 Documentation: Excellent (verified via CodeDocsSearchTool)
+  - Installation guide: Complete
+  - API reference: Comprehensive
+  - Code examples: 15+ examples found
+  - Troubleshooting: Available
 - 👥 Community Adoption: High (1500 stars, 50K downloads)
 - 🎯 Best Use Cases: Interactive data tables, Excel-like editing
 - ⚠️ Considerations: Requires AG Grid license for advanced features
@@ -289,11 +326,12 @@ Recommendations for "interactive tables":
 
 #### Methods
 
-##### `__init__(api_key: Optional[str] = None)`
+##### `__init__(api_key: Optional[str] = None, docs_path: Optional[str] = None)`
 Initialize the agents system.
 
 **Parameters**:
 - `api_key` (str, optional): OpenAI API key. Defaults to `OPENAI_API_KEY` environment variable.
+- `docs_path` (str, optional): Path to component documentation directory for CodeDocsSearchTool. Defaults to `./component_docs`.
 
 ##### `analyze_component(component_data: Dict) -> str`
 Analyze a single component.
@@ -333,6 +371,25 @@ Run all agents collaboratively.
 
 **Returns**:
 - Dict: Results from all agents
+
+##### `search_component_docs(component_name: str, search_query: str) -> str`
+Search component documentation using CodeDocsSearchTool.
+
+**Parameters**:
+- `component_name` (str): Name of the component to search docs for
+- `search_query` (str): Specific query about the component documentation
+
+**Returns**:
+- str: Search results from documentation
+
+##### `analyze_documentation_quality(component_data: Dict) -> str`
+Analyze documentation quality using CodeDocsSearchTool.
+
+**Parameters**:
+- `component_data` (Dict): Component information
+
+**Returns**:
+- str: Documentation quality analysis report
 
 ## Configuration
 
@@ -430,6 +487,62 @@ if user_query:
     )
     st.markdown(recommendations)
 ```
+
+### Example 4: Documentation Search and Quality Analysis
+
+```python
+from crewai_agents import ComponentCurationAgents
+
+# Initialize with custom documentation path
+agents = ComponentCurationAgents(docs_path="/path/to/component/docs")
+
+# Search specific component documentation
+component_name = "streamlit-aggrid"
+search_query = "How to handle cell editing events?"
+
+results = agents.search_component_docs(component_name, search_query)
+print("Documentation Search Results:")
+print(results)
+
+# Analyze documentation quality
+component_data = {
+    "name": "AgGrid",
+    "package": "streamlit-aggrid",
+    "github": "https://github.com/PablocFonseca/streamlit-aggrid"
+}
+
+quality_report = agents.analyze_documentation_quality(component_data)
+print("\nDocumentation Quality Report:")
+print(quality_report)
+```
+
+## UI Features
+
+### Documentation Search Tab
+
+The Streamlit app now includes a "Documentation Search" tab in the AI Insights panel:
+
+**Features**:
+- **Search Input**: Enter queries like "installation steps" or "API reference"
+- **Search Results**: AI-powered search results with relevant excerpts
+- **Quality Analysis Button**: Analyze overall documentation quality
+- **Quality Report**: Comprehensive assessment of documentation completeness
+
+**Usage in Streamlit**:
+1. Browse to any component in the Components Hub
+2. Expand the "AI Insights (powered by CrewAI)" section
+3. Click on the "Documentation Search" tab
+4. Enter your search query and click "Search Docs"
+5. View AI-analyzed documentation results
+
+### Sidebar Documentation Search
+
+Enable documentation search from the sidebar:
+
+1. Check "Enable Documentation Search" in the AI Features section
+2. Enter your search query in the text input
+3. Click "Search" to search across all component documentation
+4. Results appear in the sidebar with relevant information
 
 ## Testing
 
@@ -567,6 +680,24 @@ For issues or questions:
 - Review troubleshooting section
 
 ## Changelog
+
+### Version 2.1.0 - CodeDocsSearchTool Integration (2025-12-17)
+
+**Added**:
+- CodeDocsSearchTool integration for documentation analysis
+- `search_component_docs()` method for documentation search
+- `analyze_documentation_quality()` method for quality assessment
+- Documentation Search tab in AI Insights panel
+- Sidebar documentation search functionality
+- Documentation path configuration in agent initialization
+
+**Enhanced**:
+- Component Analyzer Agent now equipped with CodeDocsSearchTool
+- AI Agent Stats now shows tool availability status
+- Improved documentation analysis capabilities
+
+**Dependencies**:
+- Added: `crewai-tools>=0.12.0`
 
 ### Version 2.0.0 - CrewAI Upgrade (2025-12-17)
 
